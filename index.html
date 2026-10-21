@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#101c22" />
+    <meta name="theme-color" content="#f8f9ff" />
     <title>Ground Signal — Earthquake Radar</title>
     <meta
       name="description"
@@ -14,7 +14,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
     <link
@@ -23,19 +23,21 @@
     />
     <style>
       :root {
-        color-scheme: dark;
-        --ink: #e8e4d8;
-        --ink-soft: #b7c1bc;
-        --muted: #84938f;
-        --surface: #101c22;
-        --surface-raised: #182830;
-        --surface-line: #2b3c42;
-        --signal: #f07858;
-        --signal-bright: #ff9a72;
-        --mint: #80c8b3;
-        --warning: #edb96f;
-        --display: "Barlow Condensed", "Arial Narrow", sans-serif;
-        --body: "DM Sans", "Segoe UI", sans-serif;
+        color-scheme: light;
+        --ink: #061b31;
+        --ink-soft: #40536d;
+        --muted: #667897;
+        --surface: #ffffff;
+        --surface-raised: rgb(255 255 255 / 88%);
+        --surface-line: #dfe4f1;
+        --signal: #533afd;
+        --signal-bright: #3924cf;
+        --mint: #007d73;
+        --warning: #9a6500;
+        --page-wash: #f5f7ff;
+        --lavender: #e8e9ff;
+        --display: "Manrope", "SF Pro Display", sans-serif;
+        --body: "Manrope", "Segoe UI", sans-serif;
         --utility: "IBM Plex Mono", Consolas, monospace;
       }
 
@@ -46,7 +48,23 @@
       body {
         margin: 0;
         min-width: 320px;
-        background: var(--surface);
+        background:
+          radial-gradient(
+            ellipse 48% 30% at 7% 0%,
+            rgb(83 58 253 / 14%),
+            transparent 72%
+          ),
+          radial-gradient(
+            ellipse 34% 26% at 96% 3%,
+            rgb(64 190 207 / 15%),
+            transparent 70%
+          ),
+          linear-gradient(
+            180deg,
+            #f8f9ff 0%,
+            #ffffff 48%,
+            var(--page-wash) 100%
+          );
         color: var(--ink);
         font-family: var(--body);
       }
@@ -151,21 +169,24 @@
         height: 8px;
         border-radius: 50%;
         background: var(--warning);
-        box-shadow: 0 0 0 4px rgb(237 185 111 / 12%);
+        box-shadow: 0 0 0 4px
+          color-mix(in srgb, var(--warning) 14%, transparent);
       }
 
       .feed-status[data-state="data"] .status-lamp {
         background: var(--mint);
-        box-shadow: 0 0 0 4px rgb(128 200 179 / 12%);
+        box-shadow: 0 0 0 4px color-mix(in srgb, var(--mint) 14%, transparent);
       }
       .feed-status[data-state="stale"] .status-lamp,
       .feed-status[data-state="waiting"] .status-lamp {
         background: var(--warning);
-        box-shadow: 0 0 0 4px rgb(237 185 111 / 12%);
+        box-shadow: 0 0 0 4px
+          color-mix(in srgb, var(--warning) 14%, transparent);
       }
       .feed-status[data-state="empty"] .status-lamp {
         background: var(--ink-soft);
-        box-shadow: 0 0 0 4px rgb(183 193 188 / 12%);
+        box-shadow: 0 0 0 4px
+          color-mix(in srgb, var(--ink-soft) 14%, transparent);
       }
 
       main {
@@ -208,8 +229,10 @@
         display: grid;
         grid-template-columns: minmax(0, 1.75fr) minmax(280px, 0.75fr);
         min-height: 590px;
-        border: 1px solid var(--surface-line);
+        border: 1px solid rgb(223 228 241 / 88%);
         background: var(--surface-raised);
+        box-shadow: 0 24px 70px rgb(31 49 91 / 9%);
+        backdrop-filter: blur(18px);
       }
 
       .map-column {
@@ -247,7 +270,7 @@
         position: relative;
         min-height: 480px;
         flex: 1;
-        background: #dce2dd;
+        background: #eef1fb;
       }
 
       #map {
@@ -266,8 +289,13 @@
         display: grid;
         place-items: center;
         overflow: hidden;
-        background: #dce2dd;
-        color: #243c3b;
+        background: linear-gradient(
+          135deg,
+          #f1efff 0%,
+          #e8f3ff 52%,
+          #e5edf5 100%
+        );
+        color: #061b31;
         pointer-events: none;
       }
 
@@ -282,13 +310,13 @@
       }
       .map-fallback .graticule {
         fill: none;
-        stroke: #9bafa5;
+        stroke: #b8c2e2;
         stroke-width: 1;
         opacity: 0.7;
       }
       .map-fallback .land {
-        fill: #bac9c0;
-        stroke: #91a79b;
+        fill: #d5d8f4;
+        stroke: #aeb7de;
         stroke-width: 2;
         stroke-linejoin: round;
       }
@@ -301,8 +329,9 @@
         gap: 4px;
         max-width: min(300px, calc(100% - 28px));
         padding: 10px 12px;
-        background: rgb(255 250 242 / 92%);
-        color: #243c3b;
+        background: rgb(255 255 255 / 92%);
+        color: #061b31;
+        box-shadow: 0 10px 30px rgb(31 49 91 / 12%);
         font-size: 11px;
         line-height: 1.4;
       }
@@ -320,15 +349,15 @@
         bottom: 8px;
         z-index: 500;
         padding: 4px 6px;
-        background: rgb(16 28 34 / 82%);
-        color: #e8e4d8;
+        background: rgb(6 27 49 / 86%);
+        color: #ffffff;
         font-family: var(--utility);
         font-size: 9px;
         pointer-events: none;
       }
 
       .map-credit a {
-        color: #e8e4d8;
+        color: #ffffff;
         pointer-events: auto;
       }
 
@@ -362,9 +391,10 @@
       .legend-dot {
         display: inline-block;
         flex: 0 0 auto;
-        border: 2px solid #fffaf2;
+        border: 2px solid #ffffff;
         border-radius: 50%;
         background: var(--signal);
+        box-shadow: 0 1px 5px rgb(6 27 49 / 18%);
       }
       .legend-dot.small {
         width: 11px;
@@ -434,7 +464,7 @@
         width: 40px;
         height: 40px;
         place-items: center;
-        border: 1px solid rgb(240 120 88 / 50%);
+        border: 1px solid color-mix(in srgb, var(--signal) 38%, white);
         color: var(--signal-bright);
         font-family: var(--utility);
         font-size: 12px;
@@ -479,17 +509,17 @@
       }
 
       .leaflet-container {
-        background: #dce2dd;
+        background: #eef1fb;
       }
       .leaflet-control-attribution {
         font-size: 9px !important;
       }
       .leaflet-tooltip {
-        border: 1px solid #2b3c42;
-        border-radius: 0;
-        background: #101c22;
-        color: #e8e4d8;
-        box-shadow: none;
+        border: 1px solid var(--surface-line);
+        border-radius: 4px;
+        background: #ffffff;
+        color: var(--ink);
+        box-shadow: 0 8px 24px rgb(6 27 49 / 14%);
         font: 12px var(--body);
       }
 
@@ -887,9 +917,11 @@
             const opacity = markerOpacity(quake.time, Date.now());
             const marker = window.L.circleMarker([quake.lat, quake.lon], {
               radius: markerRadius(quake.magnitude),
-              color: "#fffaf2",
+              color: "#ffffff",
               weight: 2,
-              fillColor: "#f07858",
+              fillColor: getComputedStyle(document.documentElement)
+                .getPropertyValue("--signal")
+                .trim(),
               fillOpacity: opacity,
               opacity: Math.min(1, opacity + 0.12),
               bubblingMouseEvents: false,
