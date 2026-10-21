@@ -1,0 +1,983 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#101c22" />
+    <title>Ground Signal — Earthquake Radar</title>
+    <meta
+      name="description"
+      content="A live map of recent earthquakes from the USGS public GeoJSON feed."
+    />
+    <link rel="preconnect" href="https://unpkg.com" />
+    <link rel="preconnect" href="https://tile.openstreetmap.org" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+    <style>
+      :root {
+        color-scheme: dark;
+        --ink: #e8e4d8;
+        --ink-soft: #b7c1bc;
+        --muted: #84938f;
+        --surface: #101c22;
+        --surface-raised: #182830;
+        --surface-line: #2b3c42;
+        --signal: #f07858;
+        --signal-bright: #ff9a72;
+        --mint: #80c8b3;
+        --warning: #edb96f;
+        --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+        --body: "DM Sans", "Segoe UI", sans-serif;
+        --utility: "IBM Plex Mono", Consolas, monospace;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        background: var(--surface);
+        color: var(--ink);
+        font-family: var(--body);
+      }
+
+      button,
+      a {
+        font: inherit;
+      }
+
+      .shell {
+        width: min(1440px, 100% - 64px);
+        margin: 0 auto;
+        padding: 30px 0 48px;
+      }
+
+      .masthead {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        padding-bottom: 24px;
+        border-bottom: 1px solid var(--surface-line);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .brand-mark {
+        position: relative;
+        display: grid;
+        width: 42px;
+        height: 42px;
+        place-items: center;
+        border: 1px solid #566760;
+        border-radius: 50%;
+        color: var(--signal-bright);
+      }
+
+      .brand-mark::before,
+      .brand-mark::after {
+        position: absolute;
+        content: "";
+        border: 1px solid currentColor;
+        border-radius: 50%;
+        opacity: 0.58;
+      }
+
+      .brand-mark::before {
+        inset: 6px;
+      }
+      .brand-mark::after {
+        inset: 13px;
+        background: var(--signal);
+        opacity: 1;
+      }
+
+      .brand-name {
+        margin: 0;
+        font-family: var(--display);
+        font-size: 22px;
+        font-weight: 600;
+        letter-spacing: 0.11em;
+        line-height: 1;
+        text-transform: uppercase;
+      }
+
+      .brand-caption,
+      .eyebrow,
+      .status-label,
+      .legend-title,
+      .event-count,
+      .map-attribution-note {
+        font-family: var(--utility);
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .brand-caption {
+        margin: 5px 0 0;
+        color: var(--muted);
+        letter-spacing: 0.09em;
+      }
+
+      .feed-status {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        max-width: 520px;
+        color: var(--ink-soft);
+        font-size: 12px;
+        line-height: 1.45;
+        text-align: right;
+      }
+
+      .status-lamp {
+        flex: 0 0 auto;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--warning);
+        box-shadow: 0 0 0 4px rgb(237 185 111 / 12%);
+      }
+
+      .feed-status[data-state="data"] .status-lamp {
+        background: var(--mint);
+        box-shadow: 0 0 0 4px rgb(128 200 179 / 12%);
+      }
+      .feed-status[data-state="stale"] .status-lamp,
+      .feed-status[data-state="waiting"] .status-lamp {
+        background: var(--warning);
+        box-shadow: 0 0 0 4px rgb(237 185 111 / 12%);
+      }
+      .feed-status[data-state="empty"] .status-lamp {
+        background: var(--ink-soft);
+        box-shadow: 0 0 0 4px rgb(183 193 188 / 12%);
+      }
+
+      main {
+        padding-top: 36px;
+      }
+
+      .intro {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 22px;
+      }
+
+      .eyebrow {
+        margin: 0 0 9px;
+        color: var(--signal-bright);
+      }
+
+      h1 {
+        max-width: 700px;
+        margin: 0;
+        font-family: var(--display);
+        font-size: clamp(42px, 6.2vw, 76px);
+        font-weight: 600;
+        letter-spacing: -0.015em;
+        line-height: 0.91;
+        text-transform: uppercase;
+      }
+
+      .intro-note {
+        max-width: 260px;
+        margin: 0 0 4px;
+        color: var(--ink-soft);
+        font-size: 13px;
+        line-height: 1.55;
+      }
+
+      .radar-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.75fr) minmax(280px, 0.75fr);
+        min-height: 590px;
+        border: 1px solid var(--surface-line);
+        background: var(--surface-raised);
+      }
+
+      .map-column {
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        border-right: 1px solid var(--surface-line);
+      }
+
+      .map-heading,
+      .events-heading {
+        display: flex;
+        min-height: 62px;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--surface-line);
+      }
+
+      .map-heading h2,
+      .events-heading h2 {
+        margin: 0;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .map-heading .eyebrow {
+        margin: 0;
+      }
+
+      .map-wrap {
+        position: relative;
+        min-height: 480px;
+        flex: 1;
+        background: #dce2dd;
+      }
+
+      #map {
+        width: 100%;
+        height: 100%;
+        min-height: 480px;
+        position: relative;
+        background: transparent;
+        font-family: var(--body);
+      }
+
+      .map-fallback {
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        background: #dce2dd;
+        color: #243c3b;
+        pointer-events: none;
+      }
+
+      .map-fallback[hidden] {
+        display: none;
+      }
+      .map-fallback svg {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        opacity: 0.68;
+      }
+      .map-fallback .graticule {
+        fill: none;
+        stroke: #9bafa5;
+        stroke-width: 1;
+        opacity: 0.7;
+      }
+      .map-fallback .land {
+        fill: #bac9c0;
+        stroke: #91a79b;
+        stroke-width: 2;
+        stroke-linejoin: round;
+      }
+
+      .map-fallback-note {
+        position: absolute;
+        right: 14px;
+        bottom: 14px;
+        display: grid;
+        gap: 4px;
+        max-width: min(300px, calc(100% - 28px));
+        padding: 10px 12px;
+        background: rgb(255 250 242 / 92%);
+        color: #243c3b;
+        font-size: 11px;
+        line-height: 1.4;
+      }
+
+      .map-fallback-note strong {
+        font-family: var(--utility);
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .map-credit {
+        position: absolute;
+        right: 9px;
+        bottom: 8px;
+        z-index: 500;
+        padding: 4px 6px;
+        background: rgb(16 28 34 / 82%);
+        color: #e8e4d8;
+        font-family: var(--utility);
+        font-size: 9px;
+        pointer-events: none;
+      }
+
+      .map-credit a {
+        color: #e8e4d8;
+        pointer-events: auto;
+      }
+
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px 20px;
+        padding: 13px 18px;
+        border-top: 1px solid var(--surface-line);
+        color: var(--ink-soft);
+        font-size: 11px;
+      }
+
+      .legend-title {
+        color: var(--muted);
+        font-size: 9px;
+      }
+      .legend-group {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 9px;
+      }
+      .legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+      }
+      .legend-dot {
+        display: inline-block;
+        flex: 0 0 auto;
+        border: 2px solid #fffaf2;
+        border-radius: 50%;
+        background: var(--signal);
+      }
+      .legend-dot.small {
+        width: 11px;
+        height: 11px;
+      }
+      .legend-dot.medium {
+        width: 17px;
+        height: 17px;
+      }
+      .legend-dot.large {
+        width: 23px;
+        height: 23px;
+      }
+      .legend-dot.old {
+        width: 12px;
+        height: 12px;
+        opacity: 0.48;
+      }
+      .legend-dot.fresh {
+        width: 12px;
+        height: 12px;
+        opacity: 1;
+      }
+
+      .events-column {
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+      }
+
+      .events-heading {
+        align-items: end;
+      }
+      .events-heading .eyebrow {
+        margin-bottom: 5px;
+        font-size: 9px;
+      }
+      .event-count {
+        color: var(--muted);
+        font-size: 9px;
+        white-space: nowrap;
+      }
+
+      .event-list {
+        display: grid;
+        align-content: start;
+        gap: 0;
+        max-height: 590px;
+        margin: 0;
+        padding: 0 18px;
+        overflow: auto;
+        list-style: none;
+        scrollbar-color: #52645f transparent;
+        scrollbar-width: thin;
+      }
+
+      .event-row {
+        display: grid;
+        grid-template-columns: 42px minmax(0, 1fr);
+        gap: 12px;
+        padding: 15px 0;
+        border-bottom: 1px solid var(--surface-line);
+      }
+
+      .event-mag {
+        display: grid;
+        width: 40px;
+        height: 40px;
+        place-items: center;
+        border: 1px solid rgb(240 120 88 / 50%);
+        color: var(--signal-bright);
+        font-family: var(--utility);
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .event-place {
+        display: block;
+        overflow-wrap: anywhere;
+        color: var(--ink);
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1.4;
+      }
+
+      .event-time {
+        display: block;
+        margin-top: 5px;
+        color: var(--muted);
+        font-family: var(--utility);
+        font-size: 10px;
+        line-height: 1.4;
+      }
+
+      .empty-events {
+        margin: 0;
+        padding: 22px 18px;
+        color: var(--ink-soft);
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
+      .page-foot {
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        padding-top: 14px;
+        color: var(--muted);
+        font-family: var(--utility);
+        font-size: 9px;
+        letter-spacing: 0.04em;
+      }
+
+      .leaflet-container {
+        background: #dce2dd;
+      }
+      .leaflet-control-attribution {
+        font-size: 9px !important;
+      }
+      .leaflet-tooltip {
+        border: 1px solid #2b3c42;
+        border-radius: 0;
+        background: #101c22;
+        color: #e8e4d8;
+        box-shadow: none;
+        font: 12px var(--body);
+      }
+
+      :focus-visible {
+        outline: 3px solid var(--signal-bright);
+        outline-offset: 3px;
+      }
+
+      @media (max-width: 850px) {
+        .shell {
+          width: min(100% - 40px, 720px);
+          padding-top: 22px;
+        }
+        .radar-layout {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .map-column {
+          border-right: 0;
+          border-bottom: 1px solid var(--surface-line);
+        }
+        .map-wrap,
+        #map {
+          min-height: 420px;
+        }
+        .event-list {
+          max-height: 360px;
+        }
+        .intro-note {
+          max-width: 220px;
+        }
+      }
+
+      @media (max-width: 560px) {
+        .shell {
+          width: calc(100% - 32px);
+          padding: 16px 0 32px;
+        }
+        .masthead {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 15px;
+          padding-bottom: 17px;
+        }
+        .brand-mark {
+          width: 38px;
+          height: 38px;
+        }
+        .feed-status {
+          max-width: none;
+          text-align: left;
+        }
+        main {
+          padding-top: 27px;
+        }
+        .intro {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 12px;
+          margin-bottom: 17px;
+        }
+        h1 {
+          font-size: clamp(44px, 13vw, 62px);
+        }
+        .intro-note {
+          max-width: 330px;
+        }
+        .radar-layout {
+          min-height: 0;
+        }
+        .map-heading,
+        .events-heading {
+          min-height: 56px;
+          padding: 12px;
+        }
+        .map-wrap,
+        #map {
+          min-height: 370px;
+        }
+        .legend {
+          gap: 10px 14px;
+          padding: 12px;
+        }
+        .legend-group {
+          gap: 7px;
+        }
+        .event-list {
+          max-height: 340px;
+          padding: 0 12px;
+        }
+        .page-foot {
+          flex-direction: column;
+          gap: 6px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          scroll-behavior: auto !important;
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <header class="masthead">
+        <div class="brand" aria-label="Ground Signal earthquake radar">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <div>
+            <p class="brand-name">Ground Signal</p>
+            <p class="brand-caption">Earthquake radar / USGS public feed</p>
+          </div>
+        </div>
+        <div
+          class="feed-status"
+          id="feed-status"
+          data-state="waiting"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <span class="status-lamp" aria-hidden="true"></span>
+          <span id="status-copy"
+            >Waiting for fresh data. The map will retry automatically.</span
+          >
+        </div>
+      </header>
+
+      <main>
+        <section class="intro" aria-labelledby="page-title">
+          <div>
+            <p class="eyebrow">Global / last 24 hours</p>
+            <h1 id="page-title">The ground<br />is never still.</h1>
+          </div>
+          <p class="intro-note">
+            Recent seismic events, plotted from the USGS public earthquake feed.
+            Each mark carries its own time and strength.
+          </p>
+        </section>
+
+        <section class="radar-layout" aria-label="Recent earthquake activity">
+          <div class="map-column">
+            <div class="map-heading">
+              <h2>Event field</h2>
+              <p class="eyebrow">World / live feed</p>
+            </div>
+            <div class="map-wrap">
+              <div
+                id="map"
+                role="application"
+                aria-label="Interactive world map of recent earthquakes"
+              >
+                <div
+                  class="map-fallback"
+                  id="map-fallback"
+                  role="img"
+                  aria-label="Static world map preview. Enable JavaScript to plot live earthquake locations."
+                >
+                  <svg
+                    viewBox="0 0 1000 500"
+                    preserveAspectRatio="none"
+                    aria-hidden="true"
+                  >
+                    <g class="graticule">
+                      <path
+                        d="M0 125H1000M0 250H1000M0 375H1000M250 0V500M500 0V500M750 0V500"
+                      />
+                      <ellipse cx="500" cy="250" rx="500" ry="250" />
+                    </g>
+                    <g class="land">
+                      <path
+                        d="M92 112l34-32 50-10 42 16 29 31-14 18-32 4-18 28-29 13-9 26-26-4-9-30-23-17 4-28-15-15zM224 222l28 4 22 21-9 35-18 28-8 45-19 42-15-20 3-41-16-37 10-38-9-20zM448 105l26-17 24 8 7 22-15 19-22-3-20-12zM477 155l33 2 24 20 16 38-12 38-22 12-13 42-20 32-18-14-4-41-19-31 9-35-11-35 14-28zM517 103l42-22 66 8 44-18 64 16 43 28 51 6 47 22-15 18-50-4-30 22-40-4-27 27-34-8-23 21-22-14-34 12-19-18-42 8-19-26-34-6-13-27-38-5-15-23zM737 283l35-14 39 12 20 24-15 22-40 3-31-18z"
+                      />
+                    </g>
+                  </svg>
+                  <div class="map-fallback-note">
+                    <strong>Interactive map unavailable</strong>
+                    <span
+                      >Live earthquake locations need JavaScript and map tiles.
+                      Event details will still appear in the list.</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="legend" aria-label="Map legend">
+              <span class="legend-title">Magnitude</span>
+              <span
+                class="legend-group"
+                aria-label="Larger circles mean stronger earthquakes"
+              >
+                <span class="legend-item"
+                  ><i class="legend-dot small" aria-hidden="true"></i> under
+                  2</span
+                >
+                <span class="legend-item"
+                  ><i class="legend-dot medium" aria-hidden="true"></i> 4</span
+                >
+                <span class="legend-item"
+                  ><i class="legend-dot large" aria-hidden="true"></i> 6+</span
+                >
+              </span>
+              <span class="legend-title">Age</span>
+              <span
+                class="legend-group"
+                aria-label="Brighter circles are more recent"
+              >
+                <span class="legend-item"
+                  ><i class="legend-dot old" aria-hidden="true"></i> older</span
+                >
+                <span class="legend-item"
+                  ><i class="legend-dot fresh" aria-hidden="true"></i>
+                  fresher</span
+                >
+              </span>
+            </div>
+          </div>
+
+          <aside class="events-column" aria-labelledby="events-title">
+            <div class="events-heading">
+              <div>
+                <p class="eyebrow">Field notes</p>
+                <h2 id="events-title">Latest events</h2>
+              </div>
+              <span class="event-count" id="event-count">— events</span>
+            </div>
+            <p class="empty-events" id="event-empty">
+              Waiting for the first successful USGS update. Event details will
+              appear here.
+            </p>
+            <ol
+              class="event-list"
+              id="event-list"
+              aria-label="Earthquake details"
+            ></ol>
+          </aside>
+        </section>
+
+        <footer class="page-foot">
+          <span>Source: USGS Earthquake Hazards Program / past-day feed</span>
+          <span>Map tiles © OpenStreetMap contributors</span>
+        </footer>
+      </main>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script id="radar-core" type="text/javascript">
+      (function () {
+        const FEED_URL =
+          "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson";
+        const REFRESH_MS = 5 * 60 * 1000;
+        const DAY_MS = 24 * 60 * 60 * 1000;
+
+        function normalizeFeature(feature) {
+          const coordinates =
+            feature && feature.geometry && feature.geometry.coordinates;
+          const properties = feature && feature.properties;
+          if (
+            !Array.isArray(coordinates) ||
+            coordinates.length < 2 ||
+            !properties
+          )
+            return null;
+          const lon = coordinates[0];
+          const lat = coordinates[1];
+          const magnitude = properties.mag;
+          const time = properties.time;
+          if (
+            !Number.isFinite(lon) ||
+            !Number.isFinite(lat) ||
+            !Number.isFinite(magnitude) ||
+            !Number.isFinite(time) ||
+            !Number.isFinite(new Date(time).getTime())
+          )
+            return null;
+          if (lon < -180 || lon > 180 || lat < -90 || lat > 90) return null;
+          const place =
+            typeof properties.place === "string" && properties.place.trim()
+              ? properties.place.trim()
+              : "Location unavailable";
+          return { lat, lon, magnitude, place, time };
+        }
+
+        function markerRadius(magnitude) {
+          return Math.max(4, Math.min(22, 4 + Math.max(0, magnitude) * 2));
+        }
+
+        function markerOpacity(time, now) {
+          const age = Math.max(0, now - time);
+          return 1 - 0.5 * Math.min(age / DAY_MS, 1);
+        }
+
+        function nextState(previous, result) {
+          if (result.ok) {
+            const snapshot = result.features;
+            return {
+              snapshot,
+              status: snapshot.length ? "data" : "empty",
+              updatedAt: result.updatedAt,
+            };
+          }
+          if (previous && Array.isArray(previous.snapshot)) {
+            return {
+              snapshot: previous.snapshot,
+              status: "stale",
+              updatedAt: previous.updatedAt,
+            };
+          }
+          return { snapshot: null, status: "waiting", updatedAt: null };
+        }
+
+        const api = Object.freeze({
+          normalizeFeature,
+          markerRadius,
+          markerOpacity,
+          nextState,
+        });
+        if (typeof window !== "undefined") window.QuakeRadar = api;
+        if (typeof document === "undefined") return;
+
+        const status = document.getElementById("feed-status");
+        const statusCopy = document.getElementById("status-copy");
+        const eventCount = document.getElementById("event-count");
+        const eventEmpty = document.getElementById("event-empty");
+        const eventList = document.getElementById("event-list");
+        const state = { snapshot: null, status: "waiting", updatedAt: null };
+        let map = null;
+        let quakeLayer = null;
+        let markers = [];
+
+        function formatTime(timestamp) {
+          return new Intl.DateTimeFormat(undefined, {
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            timeZoneName: "short",
+          }).format(new Date(timestamp));
+        }
+
+        function setStatus(next) {
+          status.dataset.state = next.status;
+          if (next.status === "data") {
+            statusCopy.textContent = `${next.snapshot.length} ${next.snapshot.length === 1 ? "event" : "events"} · updated ${formatTime(next.updatedAt)}`;
+          } else if (next.status === "empty") {
+            statusCopy.textContent = `No earthquakes reported in the last 24 hours · checked ${formatTime(next.updatedAt)}`;
+          } else if (next.status === "stale") {
+            statusCopy.textContent = `USGS feed unavailable · showing last successful update from ${formatTime(next.updatedAt)} · retrying automatically`;
+          } else {
+            statusCopy.textContent =
+              "Waiting for fresh data. The USGS feed did not respond; the map will retry automatically.";
+          }
+        }
+
+        function renderEvents(quakes) {
+          eventList.replaceChildren();
+          eventCount.textContent = `${quakes.length} ${quakes.length === 1 ? "event" : "events"}`;
+          eventEmpty.hidden = quakes.length > 0;
+          eventEmpty.textContent = quakes.length
+            ? ""
+            : "No earthquakes reported in the last 24 hours.";
+          const fragment = document.createDocumentFragment();
+          quakes
+            .slice()
+            .sort((a, b) => b.time - a.time)
+            .forEach((quake) => {
+              const row = document.createElement("li");
+              row.className = "event-row";
+              const magnitude = document.createElement("span");
+              magnitude.className = "event-mag";
+              magnitude.textContent = quake.magnitude.toFixed(1);
+              const details = document.createElement("span");
+              const place = document.createElement("span");
+              place.className = "event-place";
+              place.textContent = quake.place;
+              const time = document.createElement("time");
+              time.className = "event-time";
+              time.dateTime = new Date(quake.time).toISOString();
+              time.textContent = formatTime(quake.time);
+              details.append(place, time);
+              row.append(magnitude, details);
+              fragment.append(row);
+            });
+          eventList.append(fragment);
+        }
+
+        function renderMap(quakes) {
+          if (!map || !quakeLayer) return;
+          quakeLayer.clearLayers();
+          markers = quakes.map((quake) => {
+            const opacity = markerOpacity(quake.time, Date.now());
+            const marker = window.L.circleMarker([quake.lat, quake.lon], {
+              radius: markerRadius(quake.magnitude),
+              color: "#fffaf2",
+              weight: 2,
+              fillColor: "#f07858",
+              fillOpacity: opacity,
+              opacity: Math.min(1, opacity + 0.12),
+              bubblingMouseEvents: false,
+            });
+            marker.bindTooltip(
+              document.createTextNode(
+                `${quake.place} · M${quake.magnitude.toFixed(1)} · ${formatTime(quake.time)}`,
+              ),
+              {
+                direction: "top",
+                offset: [0, -5],
+                opacity: 0.98,
+              },
+            );
+            marker.addTo(quakeLayer);
+            return marker;
+          });
+        }
+
+        function initMap() {
+          if (!window.L) return;
+          map = window.L.map("map", {
+            worldCopyJump: true,
+            minZoom: 2,
+          }).setView([20, 0], 2);
+          const tiles = window.L.tileLayer(
+            "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+            {
+              maxZoom: 19,
+              attribution:
+                '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>',
+            },
+          );
+          tiles.once("load", () => {
+            document.getElementById("map-fallback").hidden = true;
+          });
+          tiles.addTo(map);
+          quakeLayer = window.L.layerGroup().addTo(map);
+          setTimeout(() => map.invalidateSize(), 0);
+        }
+
+        async function refresh() {
+          if (state.snapshot === null) {
+            status.dataset.state = "loading";
+            statusCopy.textContent = "Connecting to the USGS feed…";
+          }
+          try {
+            const response = await fetch(FEED_URL, { cache: "no-store" });
+            if (!response.ok)
+              throw new Error(`USGS request failed (${response.status})`);
+            const payload = await response.json();
+            if (
+              !payload ||
+              payload.type !== "FeatureCollection" ||
+              !Array.isArray(payload.features)
+            ) {
+              throw new Error("USGS returned an invalid GeoJSON feed");
+            }
+            const quakes = payload.features
+              .map(normalizeFeature)
+              .filter(Boolean);
+            if (payload.features.length > 0 && quakes.length === 0) {
+              throw new Error(
+                "USGS feed contained no usable earthquake records",
+              );
+            }
+            const next = nextState(state, {
+              ok: true,
+              features: quakes,
+              updatedAt: Date.now(),
+            });
+            state.snapshot = next.snapshot;
+            state.status = next.status;
+            state.updatedAt = next.updatedAt;
+            renderMap(state.snapshot);
+            renderEvents(state.snapshot);
+            setStatus(next);
+          } catch (error) {
+            const next = nextState(state, { ok: false });
+            state.status = next.status;
+            setStatus(next);
+          }
+        }
+
+        initMap();
+        refresh();
+        window.setInterval(refresh, REFRESH_MS);
+      })();
+    </script>
+  </body>
+</html>
